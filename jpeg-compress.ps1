@@ -5,39 +5,52 @@
 
 #Requires -Version 5.1
 
+# ── Top-level error handler: any unhandled exception shows a MessageBox ───────
+trap {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        [System.Windows.Forms.MessageBox]::Show(
+            "Unexpected error:`n`n$($_.Exception.Message)`n`nAt: $($_.InvocationInfo.PositionMessage)",
+            "JPEG Compressor Error", "OK", [System.Windows.Forms.MessageBoxIcon]::Error)
+    } catch {
+        # If even MessageBox fails, write to a log file on the Desktop
+        $log = Join-Path ([Environment]::GetFolderPath("Desktop")) "jpeg-compressor-error.txt"
+        $_.Exception.Message | Out-File $log -Encoding UTF8
+    }
+    exit 1
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# ── Inline C# compression engine (avoids lock-file issues with temp files) ────
-Add-Type -TypeDefinition @"
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
+# ── JPEG codec (looked up once, reused for every quality iteration) ───────────
+$jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
+    Where-Object { $_.MimeType -eq 'image/jpeg' } |
+    Select-Object -First 1
 
-public class JpegCompressor {
+if (-not $jpegCodec) {
+    [System.Windows.Forms.MessageBox]::Show(
+        "JPEG codec not found on this system.",
+        "JPEG Compressor", "OK", [System.Windows.Forms.MessageBoxIcon]::Error)
+    exit
+}
 
-    public static byte[] Compress(string sourcePath, int quality) {
-        var codec  = GetJpegCodec();
-        var ep     = new EncoderParameters(1);
-        ep.Param[0] = new EncoderParameter(Encoder.Quality, (long)quality);
+# ── Helper: compress image at given quality → byte array ─────────────────────
+function Compress-Jpeg([string]$path, [int]$quality) {
+    $ep = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
+        [System.Drawing.Imaging.Encoder]::Quality, [long]$quality)
 
-        using (var img = Image.FromFile(sourcePath)) {
-            // Copy EXIF properties to preserve metadata
-            using (var ms = new MemoryStream()) {
-                img.Save(ms, codec, ep);
-                return ms.ToArray();
-            }
-        }
-    }
-
-    private static ImageCodecInfo GetJpegCodec() {
-        foreach (var c in ImageCodecInfo.GetImageEncoders())
-            if (c.MimeType == "image/jpeg") return c;
-        throw new Exception("JPEG codec not found on this system.");
+    $img = [System.Drawing.Image]::FromFile($path)
+    $ms  = New-Object System.IO.MemoryStream
+    try {
+        $img.Save($ms, $jpegCodec, $ep)
+        return , $ms.ToArray()   # comma prevents PowerShell from unwrapping single-element array
+    } finally {
+        $img.Dispose()
+        $ms.Dispose()
     }
 }
-"@ -ReferencedAssemblies "System.Drawing" -ErrorAction Stop
 
 # ── Helper: format byte count as human-readable string ───────────────────────
 function Format-Bytes([long]$bytes) {
@@ -138,7 +151,7 @@ if ($targetBytes -ge $originalSize) {
 
 # ── Step 3: Check floor quality achievability ─────────────────────────────────
 $MIN_QUALITY = 10
-$floorData   = [JpegCompressor]::Compress($sourcePath, $MIN_QUALITY)
+$floorData   = Compress-Jpeg $sourcePath $MIN_QUALITY
 $floorSize   = $floorData.Length
 
 if ($floorSize -gt $targetBytes) {
@@ -157,7 +170,7 @@ $bestQuality = 0
 
 while ($lo -le $hi) {
     $mid  = [int](($lo + $hi) / 2)
-    $data = [JpegCompressor]::Compress($sourcePath, $mid)
+    $data = Compress-Jpeg $sourcePath $mid
     $size = $data.Length
 
     if ($size -le $targetBytes) {
@@ -183,15 +196,4 @@ $baseName = [System.IO.Path]::GetFileNameWithoutExtension($sourcePath)
 $ext      = [System.IO.Path]::GetExtension($sourcePath)
 $outPath  = Join-Path $dir ($baseName + "_compressed" + $ext)
 $n        = 1
-while (Test-Path $outPath) {
-    $outPath = Join-Path $dir ($baseName + "_compressed_$n" + $ext)
-    $n++
-}
-
-# ── Step 6: Write output ──────────────────────────────────────────────────────
-[System.IO.File]::WriteAllBytes($outPath, $bestData)
-
-# ── Step 7: Success notification ─────────────────────────────────────────────
-[System.Windows.Forms.MessageBox]::Show(
-    "Compression complete!`n`nOriginal:     $(Format-Bytes $originalSize)`nCompressed:  $(Format-Bytes $bestSize)  (quality $bestQuality/100)`n`nSaved to:`n$outPath",
-    "JPEG Compressor", "OK", [System.Windows.Forms.MessageBoxIcon]::Information)
+while (Test-Path $o
