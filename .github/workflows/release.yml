@@ -1,6 +1,6 @@
 name: Build and Release
 
-# Triggers when you push a version tag, e.g.: git tag v1.0.0 && git push origin v1.0.0
+# Triggers when you push a version tag, e.g.: git tag v1.0.1 && git push origin v1.0.1
 on:
   push:
     tags:
@@ -19,21 +19,16 @@ jobs:
 
       - name: Install PS2EXE
         shell: pwsh
-        run: Install-Module ps2exe -Force -Scope CurrentUser
+        run: Install-Module ps2exe -Force -Scope CurrentUser -ErrorAction Stop
 
       - name: Build EXE
         shell: pwsh
         run: |
-          Import-Module ps2exe
+          Import-Module ps2exe -Force -ErrorAction Stop
           $version = "${{ github.ref_name }}".TrimStart('v')
-          Invoke-ps2exe `
-            -inputFile   jpeg-compress.ps1 `
-            -outputFile  jpeg-compress.exe `
-            -noConsole `
-            -title       "JPEG Compressor" `
-            -description "Compress a JPEG to a target file size" `
-            -company     "jwiesendanger" `
-            -version     $version
+          Invoke-ps2exe -inputFile "jpeg-compress.ps1" -outputFile "jpeg-compress.exe" -noConsole -title "JPEG Compressor" -description "Compress a JPEG to a target file size" -company "jwiesendanger" -version $version
+          if (-not (Test-Path "jpeg-compress.exe")) { throw "Build failed: jpeg-compress.exe was not created" }
+          Write-Host "EXE size: $((Get-Item jpeg-compress.exe).Length) bytes"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -45,9 +40,4 @@ jobs:
             ### Installation
             1. Download `jpeg-compress.exe` below
             2. Place it anywhere on your computer (e.g. `C:\Tools\`)
-            3. Run `Create-Shortcut.ps1` to add a desktop shortcut, or just double-click the exe directly
-
-            ### Requirements
-            - Windows 10 or 11
-            - No additional software needed
-   
+            3. Double-click the exe to run, or run `Create-Shortcut.ps1` alongside it to add
