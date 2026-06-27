@@ -1,0 +1,50 @@
+name: Build and Release
+
+# Triggers when you push a version tag, e.g.: git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PS2EXE
+        shell: pwsh
+        run: Install-Module ps2exe -Force -Scope CurrentUser
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          Import-Module ps2exe
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          Invoke-ps2exe `
+            -inputFile   jpeg-compress.ps1 `
+            -outputFile  jpeg-compress.exe `
+            -noConsole `
+            -title       "JPEG Compressor" `
+            -description "Compress a JPEG to a target file size" `
+            -company     "jwiesendanger" `
+            -version     $version
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "JPEG Compressor ${{ github.ref_name }}"
+          body: |
+            ## JPEG Compressor ${{ github.ref_name }}
+
+            ### Installation
+            1. Download `jpeg-compress.exe` below
+            2. Place it anywhere on your computer (e.g. `C:\Tools\`)
+            3. Run `Create-Shortcut.ps1` to add a desktop shortcut, or just double-click the exe directly
+
+            ### Requirements
+            - Windows 10 or 11
+            - No additional software needed
+          files: jpeg-compress.exe
