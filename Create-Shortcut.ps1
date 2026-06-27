@@ -1,27 +1,22 @@
 # Create-Shortcut.ps1
 # Run this once to install the JPEG Compressor desktop shortcut.
-# Prefers jpeg-compress.exe if built; falls back to jpeg-compress.ps1.
+# The shortcut launches jpeg-compress.ps1 directly — no terminal window appears.
 
-$exePath    = Join-Path $PSScriptRoot "jpeg-compress.exe"
-$scriptPath = Join-Path $PSScriptRoot "jpeg-compress.ps1"
+$scriptPath   = Join-Path $PSScriptRoot "jpeg-compress.ps1"
+$shortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "JPEG Compressor.lnk"
 
-if (-not (Test-Path $exePath) -and -not (Test-Path $scriptPath)) {
-    Write-Error "Neither jpeg-compress.exe nor jpeg-compress.ps1 found in $PSScriptRoot"
+if (-not (Test-Path $scriptPath)) {
+    Write-Error "jpeg-compress.ps1 not found at: $scriptPath"
     exit 1
 }
 
-$wsh          = New-Object -ComObject WScript.Shell
-$shortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "JPEG Compressor.lnk"
-$shortcut     = $wsh.CreateShortcut($shortcutPath)
+$wsh               = New-Object -ComObject WScript.Shell
+$shortcut          = $wsh.CreateShortcut($shortcutPath)
+$shortcut.TargetPath      = "powershell.exe"
+$shortcut.Arguments       = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+$shortcut.Description     = "Compress a JPEG to a target file size"
+$shortcut.WorkingDirectory = $PSScriptRoot
+$shortcut.Save()
 
-if (Test-Path $exePath) {
-    $shortcut.TargetPath = $exePath
-    $shortcut.Arguments  = ""
-    $mode = "exe"
-} else {
-    $shortcut.TargetPath = "powershell.exe"
-    $shortcut.Arguments  = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
-    $mode = "ps1"
-}
-
-$shortcut.Description      = "Compress a
+Write-Host "Shortcut created at: $shortcutPath" -ForegroundColor Green
+Write-Host "Double-click 'JPEG Compressor' on your desktop to launch."
