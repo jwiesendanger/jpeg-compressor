@@ -28,16 +28,13 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart('v')
           Invoke-ps2exe -inputFile "jpeg-compress.ps1" -outputFile "jpeg-compress.exe" -noConsole -title "JPEG Compressor" -description "Compress a JPEG to a target file size" -company "jwiesendanger" -version $version
           if (-not (Test-Path "jpeg-compress.exe")) { throw "Build failed: jpeg-compress.exe was not created" }
-          Write-Host "EXE size: $((Get-Item jpeg-compress.exe).Length) bytes"
+          Write-Host "EXE built successfully. Size: $((Get-Item jpeg-compress.exe).Length) bytes"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "JPEG Compressor ${{ github.ref_name }}"
-          body: |
-            ## JPEG Compressor ${{ github.ref_name }}
-
-            ### Installation
-            1. Download `jpeg-compress.exe` below
-            2. Place it anywhere on your computer (e.g. `C:\Tools\`)
-            3. Double-click the exe to run, or run `Create-Shortcut.ps1` alongside it to add
+      - name: Create Release and upload EXE
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = "## JPEG Compressor $tag`n`n### Installation`n1. Download ``jpeg-compress.exe`` below`n2. Place it anywhere on your computer`n3. Double-click to run`n`n### Requirements`n- Windows 10 or 11`n- No additional software needed"
+          gh release delete $
