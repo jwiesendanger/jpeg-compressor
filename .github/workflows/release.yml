@@ -6,6 +6,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -47,4 +50,4 @@ jobs:
             ### Requirements
             - Windows 10 or 11
             - No additional software needed
-          files: jpeg-compress.exe
+   
