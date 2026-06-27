@@ -8,8 +8,13 @@ $auth = "Bearer $Token"
 $base = "https://api.github.com/repos/$Repo"
 $hdrs = @{ Authorization = $auth; Accept = "application/json" }
 
-# Delete existing release if present (ignore errors)
-$existing = Invoke-RestMethod "$base/releases/tags/$Tag" -Headers $hdrs -ErrorAction SilentlyContinue
+# Delete existing release if present (404 = none exists, which is fine)
+$existing = $null
+try {
+    $existing = Invoke-RestMethod "$base/releases/tags/$Tag" -Headers $hdrs -ErrorAction Stop
+} catch {
+    Write-Host "No existing release found for $Tag (will create fresh)"
+}
 if ($existing) {
     Invoke-RestMethod "$base/releases/$($existing.id)" -Method Delete -Headers $hdrs | Out-Null
     Write-Host "Deleted existing release $($existing.id)"
