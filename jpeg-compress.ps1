@@ -133,9 +133,9 @@ function Parse-TargetSize([string]$raw) {
     return $null
 }
 
-# Binary-search quality (1-100) at a given scale; returns hashtable with Data, Size, Quality
-function Find-BestQuality([string]$path, [double]$scale, [long]$targetBytes) {
-    $lo = 1; $hi = 100
+# Binary-search quality within [minQ, maxQ] at a given scale; returns hashtable with Data, Size, Quality
+function Find-BestQuality([string]$path, [double]$scale, [long]$targetBytes, [int]$minQ = 1, [int]$maxQ = 100) {
+    $lo = $minQ; $hi = $maxQ
     $bestData = $null; $bestSize = 0; $bestQuality = 0
     while ($lo -le $hi) {
         $mid  = [int](($lo + $hi) / 2)
@@ -196,23 +196,19 @@ if ($targetBytes -ge $originalSize) {
     exit
 }
 
-# --- Phase 1: Binary-search quality at full resolution ---
-$result     = Find-BestQuality $sourcePath 1.0 $targetBytes
+# --- Phase 1: Quality 35-100 at full resolution (looks good, no color damage) ---
+$result     = Find-BestQuality $sourcePath 1.0 $targetBytes -minQ 35 -maxQ 100
 $finalScale = 1.0
 
-# --- Phase 2: If quality alone can't hit target, binary-search scale ---
+# --- Phase 2: Quality would need to go below 35 - scale dimensions instead ---
+#     Binary-search for the largest scale where quality=75 hits the target.
+#     A smaller sharp image always looks better than a full-size degraded one.
 if ($null -eq $result.Data) {
 
-    # Find the largest scale where quality=1 fits the target
-    # Binary search: lo=5%, hi=95%
-    $scLo = 0.05; $scHi = 0.95
+    $scLo = 0.05; $scHi = 1.0
     $workingScale = $null
 
-    while (($scHi - $scLo) -gt 0.01) {
-        $scMid    = [Math]::Round(($scLo + $scHi) / 2, 3)
-        $testData = Compress-Jpeg $sourcePath 1 $scMid
-        if ($testData.Length -le $targetBytes) {
-            $workingScale = $scMid
-            $scLo = $scMid       # this scale works, try larger
-        } else {
-            $scHi = $
+    while (($scHi - $scLo) -gt 0.005) {
+        $scMid    = [Math]::Round(($scLo + $scHi) / 2, 4)
+        $testData = Compress-Jpeg $sourcePath 75 $scMid
+        if ($testData.Leng
