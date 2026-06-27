@@ -36,5 +36,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $notes = "## JPEG Compressor $tag`n`n### Installation`n1. Download ``jpeg-compress.exe`` below`n2. Place it anywhere on your computer`n3. Double-click to run`n`n### Requirements`n- Windows 10 or 11`n- No additional software needed"
-          $ErrorActionPrefere
+          Write-Host "Tag: $tag"
+          Write-Host "EXE exists: $(Test-Path 'jpeg-compress.exe')"
+          Write-Host "EXE size: $((Get-Item 'jpeg-compress.exe').Length) bytes"
+
+          $ErrorActionPreference = 'Continue'
+          gh release delete $tag --yes
+    
